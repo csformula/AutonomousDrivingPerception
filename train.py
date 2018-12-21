@@ -122,7 +122,7 @@ for epoch in range(opt.epochs):
     end_time = time.time()
     epoch_time = end_time-start_time
     print(f'Epoch {epoch+1} done! Time used: {epoch_time:.2f}s')
-    print(f'Time on each img: {epoch_time/6:.2f}s')
+    print(f'Time on each img: {epoch_time/65000:.2f}s')
 
 
 
