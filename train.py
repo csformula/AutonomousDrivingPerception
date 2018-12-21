@@ -83,6 +83,7 @@ Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
 
 for epoch in range(opt.epochs):
+    start_time = time.time()
     for batch_i, (_, imgs, targets) in enumerate(dataloader):
         imgs = Variable(imgs.type(Tensor))
         targets = Variable(targets.type(Tensor), requires_grad=False)
@@ -117,3 +118,14 @@ for epoch in range(opt.epochs):
 
     if (epoch+1) % opt.checkpoint_interval == 0:
         model.save_weights("%s/%d.weights" % (opt.checkpoint_dir, epoch+1))
+
+    end_time = time.time()
+    epoch_time = end_time-start_time
+    print(f'Epoch {epoch+1} done! Time used: {epoch_time:.2f}s')
+    print(f'Time on each img: {epoch_time/6:.2f}s')
+
+
+
+
+
+        
