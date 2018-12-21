@@ -85,6 +85,8 @@ optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters(
 for epoch in range(opt.epochs):
     start_time = time.time()
     for batch_i, (_, imgs, targets) in enumerate(dataloader):
+        batch_starttime = time.time()
+        
         imgs = Variable(imgs.type(Tensor))
         targets = Variable(targets.type(Tensor), requires_grad=False)
 
@@ -94,9 +96,14 @@ for epoch in range(opt.epochs):
 
         loss.backward()
         optimizer.step()
+        
+        model.seen += imgs.size(0)
+        
+        batch_endtime = time.time()
+        batchtime = batch_endtime-batch_starttime
 
         print(
-            "[Epoch %d/%d, Batch %d/%d] [Losses: x %f, y %f, w %f, h %f, conf %f, cls %f, total %f, recall: %.5f, precision: %.5f]"
+            "[Epoch %d/%d, Batch %d/%d] [Losses: x %f, y %f, w %f, h %f, conf %f, cls %f, total %f, recall: %.5f, precision: %.5f, Time: %.2fs]"
             % (
                 epoch,
                 opt.epochs,
@@ -111,10 +118,9 @@ for epoch in range(opt.epochs):
                 loss.item(),
                 model.losses["recall"],
                 model.losses["precision"],
+                batchtime
             )
         )
-
-        model.seen += imgs.size(0)
 
     if (epoch+1) % opt.checkpoint_interval == 0:
         model.save_weights("%s/%d.weights" % (opt.checkpoint_dir, epoch+1))
