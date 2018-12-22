@@ -62,7 +62,7 @@ decay = float(hyperparams["decay"])
 burn_in = int(hyperparams["burn_in"])
 
 # Initiate model
-model = Darknet(opt.model_config_path)
+model = Darknet(opt.model_config_path, img_size=opt.img_size)
 # model.load_weights(opt.weights_path)
 model.apply(weights_init_normal)
 
@@ -80,16 +80,21 @@ dataloader = torch.utils.data.DataLoader(
 
 Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 
-optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
+# optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
+optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=learning_rate, weight_decay=decay, momentum=momentum)
+scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda x: ((x+1)/burn_in)**2, last_epoch=-1)
 
 for epoch in range(opt.epochs):
-    start_time = time.time()
+    start_time = time.time()        
     for batch_i, (_, imgs, targets) in enumerate(dataloader):
         batch_starttime = time.time()
+        #update lr in burn_in
+        if epoch==0 and batch_i<burn_in:
+            scheduler.step()
         
         imgs = Variable(imgs.type(Tensor))
         targets = Variable(targets.type(Tensor), requires_grad=False)
-
+        
         optimizer.zero_grad()
 
         loss = model(imgs, targets)
@@ -103,7 +108,7 @@ for epoch in range(opt.epochs):
         batchtime = batch_endtime-batch_starttime
 
         print(
-            "[Epoch %d/%d, Batch %d/%d] [Losses: x %f, y %f, w %f, h %f, conf %f, cls %f, total %f, recall: %.5f, precision: %.5f, Time: %.2fs]"
+            "[Epoch %d/%d, Batch %d/%d] [Losses: x %f, y %f, w %f, h %f, conf %f, cls %f, total %f, recall: %.5f, precision: %.5f, Time: %.2fs, lr: %.10f]"
             % (
                 epoch,
                 opt.epochs,
@@ -118,9 +123,11 @@ for epoch in range(opt.epochs):
                 loss.item(),
                 model.losses["recall"],
                 model.losses["precision"],
-                batchtime
+                batchtime,
+                optimizer.param_groups[0]['lr']
             )
         )
+        
 
     if (epoch+1) % opt.checkpoint_interval == 0:
         model.save_weights("%s/%d.weights" % (opt.checkpoint_dir, epoch+1))

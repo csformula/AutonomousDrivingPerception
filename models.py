@@ -109,11 +109,15 @@ class YOLOLayer(nn.Module):
         self.bbox_attrs = 5 + num_classes
         self.image_dim = img_dim
         self.ignore_thres = 0.5
-        self.lambda_coord = 1
+#         self.lambda_coord = 1
+        self.lambda_xy = 2.5
+        self.lambda_wh = 2.5
+        self.lambda_conf = 1.0
+        self.lambda_cls = 1.0
 
         self.mse_loss = nn.MSELoss(size_average=True)  # Coordinate loss
         self.bce_loss = nn.BCELoss(size_average=True)  # Confidence loss
-        self.ce_loss = nn.CrossEntropyLoss()  # Class loss
+#         self.ce_loss = nn.CrossEntropyLoss()  # Class loss
 
     def forward(self, x, targets=None):
         nA = self.num_anchors
@@ -156,7 +160,7 @@ class YOLOLayer(nn.Module):
             if x.is_cuda:
                 self.mse_loss = self.mse_loss.cuda()
                 self.bce_loss = self.bce_loss.cuda()
-                self.ce_loss = self.ce_loss.cuda()
+#                 self.ce_loss = self.ce_loss.cuda()
 
             nGT, nCorrect, mask, conf_mask, tx, ty, tw, th, tconf, tcls = build_targets(
                 pred_boxes=pred_boxes.cpu().data,
@@ -185,22 +189,23 @@ class YOLOLayer(nn.Module):
             tw = Variable(tw.type(FloatTensor), requires_grad=False)
             th = Variable(th.type(FloatTensor), requires_grad=False)
             tconf = Variable(tconf.type(FloatTensor), requires_grad=False)
-            tcls = Variable(tcls.type(LongTensor), requires_grad=False)
+            tcls = Variable(tcls.type(FloatTensor), requires_grad=False)
 
             # Get conf mask where gt and where there is no gt
             conf_mask_true = mask
             conf_mask_false = conf_mask - mask
 
             # Mask outputs to ignore non-existing objects
-            loss_x = self.mse_loss(x[mask], tx[mask])
-            loss_y = self.mse_loss(y[mask], ty[mask])
+            loss_x = self.bce_loss(x[mask], tx[mask])
+            loss_y = self.bce_loss(y[mask], ty[mask])
             loss_w = self.mse_loss(w[mask], tw[mask])
             loss_h = self.mse_loss(h[mask], th[mask])
-            loss_conf = self.bce_loss(pred_conf[conf_mask_false], tconf[conf_mask_false]) + self.bce_loss(
-                pred_conf[conf_mask_true], tconf[conf_mask_true]
-            )
-            loss_cls = (1 / nB) * self.ce_loss(pred_cls[mask], torch.argmax(tcls[mask], 1))
-            loss = loss_x + loss_y + loss_w + loss_h + loss_conf + loss_cls
+            loss_conf = 0.5*self.bce_loss(pred_conf[conf_mask_false], tconf[conf_mask_false]) + \
+                        self.bce_loss(pred_conf[conf_mask_true], tconf[conf_mask_true])
+            loss_cls = self.bce_loss(pred_cls[mask], tcls[mask])
+            loss = self.lambda_xy*loss_x + self.lambda_xy*loss_y + \
+                   self.lambda_wh*loss_w + self.lambda_wh*loss_h + \
+                   self.lambda_conf*loss_conf + self.lambda_cls*loss_cls
 
             return (
                 loss,
